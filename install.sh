@@ -11,37 +11,42 @@ echo "
 "
 main() {
     echo "Checking internet connection"
+    sleep 2
     ping -c 3 archlinux.org >/dev/null 2>&1
     if [[ $? -ne 0 ]]; then
         echo "You are not connected to internert. Please connect and try angain later."
         exit 2
     fi
     echo "Updating pacman db"
+    sleep 2
     timedatectl set-ntp true
-    sed -i 's/^#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
-    echo -e "ILoveCandy\nColor" >>/etc/pacman.conf
-    pacman -S --noconfirm --needed reflector
+    sed -i 's/^#ParallelDownloads/ParallelDownloads = 3/' /etc/pacman.conf
+    sed -i "/\[options\]/a ILoveCandy\nColor" /etc/pacman.conf
+    pacman -S --noconfirm reflector
     cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.old
-    reflector -f 5 -l 20 --sort rate --save /etc/pacman.d/mirrorlist
+    reflector --ipv6 --ipv4 --protocol https -l 20 --sort rate --save /etc/pacman.d/mirrorlist
     pacman -Syy
 
-    read -p "Mount point: " mount
-    echo "${mount}"
-    if findmnt /mnt/efi >/dev/null 2>&1; then
+    read -p "Mount point: " mount_pt
+    echo "${mount_pt}"
+    sleep 3
+    if ! findmnt ${mount_pt}/efi >/dev/null 2>&1; then
         echo "efi partition does not exist."
         exit 1
     fi
     echo "Install base system"
+    sleep 3
     pacstrap -K /mnt base base-devel linux linux-lts linux-headers linux-lts-headers vim nano git wget curl linux-firmware intel-ucode dosfstools ntfs-3g networkmanager man texinfo terminus-font --noconfirm --needed
 
     echo "Generating fstab"
+    sleep 2
     genfstab -U /mnt >>/mnt/etc/fstab
 
     while true; do
         read -p "Chroot to continue instalation? (y,n) " archroot
         case "${archroot,,}" in
         "yes" | "y")
-            system_install
+            arch-chroot /mnt system_install
             break
             ;;
         "no" | "n")
@@ -57,7 +62,7 @@ main() {
 
 system_install() {
     echo "Chrooting..."
-    arch-chroot /mnt
+    sleep 2
     regions=($(ls /usr/share/zoneinfo/))
     PS3="Please select your region: "
 
@@ -111,7 +116,7 @@ system_install() {
     grub-mkconfig -o /boot/grub/grub.cfg
 
     echo "Creating a user"
-    read "User name: " usrname
+    read -p "User name: " usrname
     useradd -m -g users -G wheel "${usrname}"
     passwd "${usrname}"
 
@@ -130,7 +135,7 @@ if [[ $# -gt 1 ]]; then
     echo "Usage: ./install.sh [install]"
     exit 3
 elif [[ $# -eq 1 && $1 == "install" ]]; then
-    system_install
+    arch-chroot /mnt system_install
 else
     main
 fi
